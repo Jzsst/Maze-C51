@@ -4,7 +4,9 @@ uchar i,j;
 uchar range=49;
 uchar V=2;
 uchar frequency=0;
+uchar direction=8;
 sbit Deep=P3^7;
+uchar x=0,y=0;
 void go(uchar num)//转向行走
 {
     uchar flag=110;
@@ -16,6 +18,26 @@ void go(uchar num)//转向行走
 		flag=99;
     for(j=0;j<flag;j++)
     {
+
+		if(num==8)
+		{
+			if(ir7)
+			{
+				for(i=0;i<8;i++)
+				{
+					P1=right[i];
+					delayms_Y(V);
+				}
+			}	
+			if(ir9)
+			{
+				for(i=0;i<8;i++)
+				{
+					P1=left[i];
+					delayms_Y(V);
+				}
+			}
+		}
         for(i=0;i<8;i++)
         {
             
@@ -25,24 +47,16 @@ void go(uchar num)//转向行走
                 case 2:P1=right[i];break;//后
                 case 4:P1=left[i];break;//左
                 case 6:P1=right[i];break;//右
-				case 7:P1=left[i];break;//左
-                case 9:P1=right[i];break;//右
-
             }
             delayms_Y(V);
+			Tube_1(x);
+			Tube_2(y);
+
         }
-		if(num==8)
-		{
-			if(ir7)
-				go(9);
-			if(ir9)
-				go(7);
-		}
     }
 }
 void main()
 {
-	// display();
     EA=1;//总中断允许    //T2CON默认配置为16位自动重载计数模式    //T2MOD默认不使能减计数和时钟输出
     ET2=1;
     TH2=(65536-10000)/256;
@@ -50,7 +64,6 @@ void main()
     TL2=(65536-10000)%256;
     RCAP2L=(65536-10000)%256;
     TR2=1;
-
     while(1)
     {
 		if(ir8)
@@ -58,15 +71,33 @@ void main()
 			if(ir6)
 			{
 				if(ir4)
+				{
 					go(2);
+						direction=2;
+				}
 				else
+				{
 					go(4);
+						direction=4;
+				}
 			}
 			else
-				go(6);
+			{
+				go(6);	
+					direction=6;
+			}
 		}
 		else
+		{
 			go(8);
+			switch(direction)
+			{
+				case 8:y++;break;
+				case 2:y--;break;
+				case 4:x--;break;
+				case 6:x++;break;
+			}	
+		}	
     }
 }
 void Timer2() interrupt 5
