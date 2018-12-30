@@ -1,0 +1,247 @@
+#include "maze.h"
+#include "mouse.h"
+uchar i,j;
+uchar range=49;
+uchar V=2;
+uchar frequency=0;
+sbit Deep=P3^7;
+// uchar Add=7;
+uchar direction=0;
+uchar x=0,y=0;
+uchar map[8][8];//走过为1    不正确的为-1
+uchar position[]={0,0,0,0,0,0,0,0};
+uchar dir[]={0,0,0,0};
+void go(uchar num)//转向行走
+{
+    uchar flag=110;
+    if(num==1||num==3)
+        flag=range;
+	if(num==7||num==9)
+		flag=1;
+	if(num==2)
+		flag=98;
+    for(j=0;j<flag;j++)
+    {
+		if(num==0)
+		{
+			if(ir7)
+			for(i=0;i<8;i++)
+			{
+				P1=right[i]&0x0f;
+				delayms_Y(V);
+			}
+			if(ir9)
+			for(i=0;i<8;i++)
+			{
+				P1=left[i]&0xf0;
+				delayms_Y(V);
+			}
+		}
+        for(i=0;i<8;i++)
+        {
+            switch (num)
+            {
+                case 0:P1=forward[i];break;//前
+				case 1:P1=right[i];break;//右
+                case 2:P1=right[i];break;//后
+                case 3:P1=left[i];break;//左
+            }
+            delayms_Y(V);
+        }
+		// Tube_1(x);
+		// Tube_2(y);
+    }
+}
+void judgenext()//计算下一个可能的坐标
+{	//前 右  后 左 //注意是否有问题
+	for(j=0;j<4;j++)
+	{
+		dir[j]=direction+j;
+		position[j*2]=x;
+		position[j*2+1]=y;
+	}
+	for(i=0;i<4;i++)
+	{
+		switch(dir[i])
+		{
+			case 0:position[i*2+1]++;break;
+			case 1:position[i*2]++;break;
+			case 2:position[i*2+1]--;break;
+			case 3:position[i+2]--;break;
+		}
+	}
+}
+// 0000  高四位记录来的方向  0000低四位记录每一个方格的墙的信息 对应为 上 右 下 左
+void Record_Information_dir(uchar num)
+{
+	switch(direction+num)
+	{
+		case 0:map[x][y]=map[x][y]|0x01;break;//绝对上
+		case 1:map[x][y]=map[x][y]|0x02;break;//绝对右
+		case 2:break;//绝对下
+		case 3:map[x][y]=map[x][y]|0x08;break;//绝对右
+	}
+}
+void Record_Information()//获取宫格信息  路径消息（绝对方向）  传入来的方向
+{	
+	//相对方向转绝对反向，相对前对应绝对前。 有没有必要记录每个宫格全部周围的墙？？？？？ 记录绝对反向的 《上 右》
+	//direction=(dir+direction)%4;//绝对坐标计算  记录来的绝对方向
+	switch(direction)//存入来的方向
+	{
+		case 0:map[x][y]=map[x][y]|0x00;break;
+		case 1:map[x][y]=map[x][y]|0x10;break;
+		case 2:map[x][y]=map[x][y]|0x20;break;
+		case 3:map[x][y]=map[x][y]|0x30;break;
+	}
+	//通过绝对方向来转换-计算迷宫的绝对方向
+	if(ir8)//有墙   1 表示有墙
+		Record_Information_dir(0);
+	if(ir6)
+		Record_Information_dir(1);
+	if(ir4)
+		Record_Information_dir(3);
+	//信息记录完毕
+}
+void parameter(uchar num) //更新方向和向前进   (调用之前先判断转向)
+{
+	if(num!=0)
+		go(num);
+	go(0);//走
+	direction=dir[num];//绝对方向
+	x=position[num*2];
+	y=position[num*2+1];
+	Record_Information();
+}
+void Backtracking()//回溯   parameter() 无法使用需要单独写
+{	//  获取来的方向	  作出反应（转向 直走一步）  	更新坐标 	函数结束
+	uchar temp =map[x][y]&0xf0;// 0 1 2 3 上 右 后 左 
+	switch(temp)
+	{
+		 case 0x00:go(2);break;
+		 case 0x10:go(3);break;
+		 case 0x20:go(2);break;
+		 case 0x30:go(1);break;
+	}
+	go(0);
+	Deep=0;
+	delayms_Y(200);
+	Deep=1;
+}
+void Heuristic_Rule()//试探函数  上 右 下 左  0 1 2 3   if判断条件  走下的下一方不能等一 1 和 -1
+{
+	judgenext();
+	if(!ir6&&map[position[2]][position[3]]==0x00)//右
+	{
+		parameter(1);
+	}
+	else if(!ir8&&map[position[0]][position[1]]==0x00)//前
+	{
+		parameter(0);
+	}
+	else if(!ir4&&map[position[6]][position[7]]==0x00)//左
+	{
+		parameter(3);
+	}
+	else
+	{
+		Backtracking();	//回溯
+	}
+}
+void main()
+{
+    EA=1;//总中断允许    //T2CON默认配置为16位自动重载计数模式    //T2MOD默认不使能减计数和时钟输出
+    ET2=1;
+    TH2=(65536-10000)/256;
+    RCAP2H=(65536-10000)/256;
+    TL2=(65536-10000)%256;
+    RCAP2L=(65536-10000)%256;
+    TR2=1;
+	delayms_Y(1000);
+	//初始化
+	for(j=0;j<8;j++)
+	{
+		for(i=0;i<8;i++)
+		{
+			map[j][i]=0x00;
+		}
+	}//全部初始化为0  通过判断去往下一个地方 然后判断是否走过
+    while(1)
+    {
+		delayms_Y(500);
+		Heuristic_Rule();//通过这一个的判断记录数据
+    }
+}
+void Timer2() interrupt 5
+{
+	TF2=0;
+    if(frequency%10==0)
+		frequency=0;
+	switch(frequency)
+	{
+		case 0: ir_A(0);break;
+		case 1:{
+							if(irR1==0)
+							{
+								ir8=1;
+							}
+							else//无墙
+							{
+								ir8=0;
+							}
+							break;
+					}
+		case 2: ir_A(1);break;
+		case 3:{
+							if(irR2==0)
+							{
+								ir7=1;
+							}
+							else
+							{
+								ir7=0;	
+							}								
+							break;
+					}
+		case 4: ir_A(2);break;
+		case 5:{
+							if(irR3==0)
+							{
+								ir4=1;
+
+							}
+							else
+							{
+								ir4=0;
+
+							}
+
+							break;
+					}
+		case 6: ir_A(3);break;
+		case 7:{
+							if(irR4==0)
+							{
+								ir6=1;
+							}
+							else
+							{
+								ir6=0;
+							}
+
+							break;
+					}
+		case 8: ir_A(4);break;
+		case 9:{
+							if(irR5==0)
+							{
+								ir9=1;
+							}
+							else
+							{								
+								ir9=0;			
+                            }							
+							break;
+				}
+	}
+	frequency++;
+} 
